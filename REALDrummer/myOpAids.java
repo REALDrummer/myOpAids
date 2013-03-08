@@ -13,6 +13,8 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.Plugin;
@@ -32,7 +34,7 @@ public class myOpAids extends JavaPlugin {
 					" V" };
 	private static HashMap<Enchantment, String> enchantment_names = new HashMap<Enchantment, String>();
 	private static HashMap<String, GameMode> offline_player_gamemodes = new HashMap<String, GameMode>(), gamemodes_to_change = new HashMap<String, GameMode>();
-	private ArrayList<String> suicidal_maniacs = new ArrayList<String>();
+	private ArrayList<String> suicidal_maniacs = new ArrayList<String>(), players_who_need_to_input_passwords = new ArrayList<String>();
 
 	// TODO: make it announce when a player is kicked or banned vs. just disconnected (if myScribe doesn't exist, otherwise, myScribe will take care of it)
 	// TODO: make a configurable setup where people can determine which plugin is dominant when two plugins have conflicting commands
@@ -166,6 +168,11 @@ public class myOpAids extends JavaPlugin {
 
 	// listeners
 	@EventHandler
+	public void ifThereIsAServerPasswordAddLoggingInPlayerToTheList(PlayerJoinEvent event) {
+		
+	}
+	
+	@EventHandler
 	public void rejoiceAtThePlayersRespawnAfterSuicide(PlayerRespawnEvent event) {
 		if (suicidal_maniacs.contains(event.getPlayer().getName())) {
 			suicidal_maniacs.remove(event.getPlayer().getName());
@@ -180,6 +187,11 @@ public class myOpAids extends JavaPlugin {
 		offline_player_gamemodes.put(event.getPlayer().getName(), event.getPlayer().getGameMode());
 	}
 
+	@EventHandler
+	public void cancelMonsterCombatEngagesForPlayersWhoNeedToPutInTheServerPassword(EntityTargetEvent event) {
+		event.get
+	}
+	
 	// plugin commands
 	private void changeGameMode(CommandSender sender) {
 		if (server.getPluginManager().getPlugin("myGuardDog") != null) {
