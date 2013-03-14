@@ -23,8 +23,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import REALDrummer.myGuardDog;
 
 public class myOpAids extends JavaPlugin {
-	private static Server server;
-	private static ConsoleCommandSender console;
+	public static Server server;
+	public static ConsoleCommandSender console;
 	private static String[] parameters = new String[0];
 	private static final String[] enable_messages = { "I'm ready to help!", "You're welcome.", "Time to be the best server op ever...other than REALDrummer, of course." },
 			disable_messages = { "I hope you enjoyed my BANHAMMER!", "Griefers: banned. \nPlayers: happy. \nYou: happy. \nMe: done with my work here." }, magic_words = {
@@ -169,9 +169,9 @@ public class myOpAids extends JavaPlugin {
 	// listeners
 	@EventHandler
 	public void ifThereIsAServerPasswordAddLoggingInPlayerToTheList(PlayerJoinEvent event) {
-		
+
 	}
-	
+
 	@EventHandler
 	public void rejoiceAtThePlayersRespawnAfterSuicide(PlayerRespawnEvent event) {
 		if (suicidal_maniacs.contains(event.getPlayer().getName())) {
@@ -191,7 +191,7 @@ public class myOpAids extends JavaPlugin {
 	public void cancelMonsterCombatEngagesForPlayersWhoNeedToPutInTheServerPassword(EntityTargetEvent event) {
 		event.get
 	}
-	
+
 	// plugin commands
 	private void changeGameMode(CommandSender sender) {
 		if (server.getPluginManager().getPlugin("myGuardDog") != null) {
