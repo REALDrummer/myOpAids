@@ -5,6 +5,7 @@ import java.util.HashMap;
 
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.command.Command;
@@ -13,8 +14,9 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.Plugin;
@@ -22,7 +24,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import REALDrummer.myGuardDog;
 
-public class myOpAids extends JavaPlugin {
+public class myOpAids extends JavaPlugin implements Listener {
+
 	public static Server server;
 	public static ConsoleCommandSender console;
 	private static String[] parameters = new String[0];
@@ -43,6 +46,8 @@ public class myOpAids extends JavaPlugin {
 	public void onEnable() {
 		server = getServer();
 		console = server.getConsoleSender();
+		// register this class as a listener
+		server.getPluginManager().registerEvents(this, this);
 		// input enchantment names
 		enchantment_names.put(Enchantment.ARROW_DAMAGE, "Power");
 		enchantment_names.put(Enchantment.ARROW_FIRE, "Flame");
@@ -168,11 +173,6 @@ public class myOpAids extends JavaPlugin {
 
 	// listeners
 	@EventHandler
-	public void ifThereIsAServerPasswordAddLoggingInPlayerToTheList(PlayerJoinEvent event) {
-
-	}
-
-	@EventHandler
 	public void rejoiceAtThePlayersRespawnAfterSuicide(PlayerRespawnEvent event) {
 		if (suicidal_maniacs.contains(event.getPlayer().getName())) {
 			suicidal_maniacs.remove(event.getPlayer().getName());
@@ -189,7 +189,20 @@ public class myOpAids extends JavaPlugin {
 
 	@EventHandler
 	public void cancelMonsterCombatEngagesForPlayersWhoNeedToPutInTheServerPassword(EntityTargetEvent event) {
-		event.get
+		// TODO make a entity stop targeting a player who is putting in the password.
+	}
+
+	@EventHandler
+	public void makeMonsterSpawnersDropWithSilkTouch(BlockBreakEvent event) {
+		console.sendMessage(ChatColor.GRAY + "Got the event!");
+		if (event.getPlayer().hasPermission("myopaids.spawners")
+				&& (event.getPlayer().getItemInHand().getType() == Material.DIAMOND_PICKAXE || event.getPlayer().getItemInHand().getType() == Material.IRON_PICKAXE
+						|| event.getPlayer().getItemInHand().getType() == Material.GOLD_PICKAXE || event.getPlayer().getItemInHand().getType() == Material.STONE_PICKAXE || event
+						.getPlayer().getItemInHand().getType() == Material.WOOD_PICKAXE) && event.getPlayer().getItemInHand().containsEnchantment(Enchantment.SILK_TOUCH)) {
+			// TODO
+			event.setCancelled(true);
+			console.sendMessage(ChatColor.WHITE + event.getBlock().toString());
+		}
 	}
 
 	// plugin commands
@@ -351,7 +364,7 @@ public class myOpAids extends JavaPlugin {
 	private void enchantItem(CommandSender sender) {
 		Player player = (Player) sender;
 		int id = player.getItemInHand().getTypeId();
-		String item_name = myPluginWiki.getItemName(id, -1);
+		String item_name = Wiki.getItemName(id, -1, false, true);
 		// check to make sure the item is enchantable at all
 		if (!(id == 256 || id == 257 || id == 258 || id == 261 || (id >= 267 && id <= 279) || (id >= 283 && id <= 286) || (id >= 302 && id <= 317))) {
 			if (item_name.endsWith("s") && !item_name.endsWith("ss"))
@@ -421,7 +434,8 @@ public class myOpAids extends JavaPlugin {
 			if (enchantments[i] != null && enchantments[i].canEnchantItem(player.getItemInHand()) && enchantments[i].getMaxLevel() >= enchantments_levels[i]) {
 				player.getItemInHand().addEnchantment(enchantments[i], enchantments_levels[i]);
 				good_enchantments.add(enchantments[i]);
-				// if an enchantment can't have more than one level, just eliminate the level from the name
+				// if an enchantment can't have more than one level, just
+				// eliminate the level from the name
 				if (enchantments[i].getMaxLevel() == 1)
 					good_enchantments_levels.add("");
 				else
@@ -433,7 +447,9 @@ public class myOpAids extends JavaPlugin {
 				if (enchantments[i].getMaxLevel() == 1)
 					mislevelled_enchantments_levels.add("");
 				else
-					// make sure that if the level is over 5, it just uses the digits since there is no logged roman numeral for anything over 5
+					// make sure that if the level is over 5, it just uses the
+					// digits since there is no logged roman numeral for
+					// anything over 5
 					try {
 						mislevelled_enchantments_levels.add(enchantment_level_roman_numerals[enchantments_levels[i] - 1]);
 					} catch (ArrayIndexOutOfBoundsException exception) {
@@ -445,18 +461,18 @@ public class myOpAids extends JavaPlugin {
 		// display results
 		if (good_enchantments.size() == 1)
 			player.sendMessage(ChatColor.GOLD + magic_words[(int) (Math.random() * magic_words.length)] + ChatColor.GRAY + " Your " + item_name + " is now enchanted with "
-					+ ChatColor.BLUE + enchantment_names.get(good_enchantments.get(0)) + good_enchantments_levels.get(0) + ChatColor.GRAY + ".");
+					+ ChatColor.GRAY + enchantment_names.get(good_enchantments.get(0)) + good_enchantments_levels.get(0) + ChatColor.GRAY + ".");
 		else if (good_enchantments.size() == 2)
 			player.sendMessage(ChatColor.GOLD + magic_words[(int) (Math.random() * magic_words.length)] + ChatColor.GRAY + " Your " + item_name + " is now enchanted with "
-					+ ChatColor.BLUE + enchantment_names.get(good_enchantments.get(0)) + good_enchantments_levels.get(0) + ChatColor.GRAY + " and " + ChatColor.BLUE
+					+ ChatColor.GRAY + enchantment_names.get(good_enchantments.get(0)) + good_enchantments_levels.get(0) + ChatColor.GRAY + " and " + ChatColor.GRAY
 					+ enchantment_names.get(good_enchantments.get(1)) + good_enchantments_levels.get(1) + ChatColor.GRAY + ".");
 		else if (good_enchantments.size() > 2) {
 			String message_beginning =
 					ChatColor.GOLD + magic_words[(int) (Math.random() * magic_words.length)] + ChatColor.GRAY + " Your " + item_name + " is now enchanted with ";
 			for (int i = 0; i < good_enchantments.size() - 1; i++)
 				message_beginning =
-						message_beginning + ChatColor.BLUE + enchantment_names.get(good_enchantments.get(i)) + good_enchantments_levels.get(i) + ChatColor.GRAY + ", ";
-			player.sendMessage(message_beginning + "and " + ChatColor.BLUE + enchantment_names.get(good_enchantments.get(good_enchantments.size() - 1))
+						message_beginning + ChatColor.GRAY + enchantment_names.get(good_enchantments.get(i)) + good_enchantments_levels.get(i) + ChatColor.GRAY + ", ";
+			player.sendMessage(message_beginning + "and " + ChatColor.GRAY + enchantment_names.get(good_enchantments.get(good_enchantments.size() - 1))
 					+ good_enchantments_levels.get(good_enchantments_levels.size() - 1) + ChatColor.GRAY + ".");
 		}
 		if (bad_enchantments.size() > 0) {
@@ -545,30 +561,42 @@ public class myOpAids extends JavaPlugin {
 	private void id(CommandSender sender) {
 		if (parameters.length == 0 || parameters[0].equalsIgnoreCase("this") || parameters[0].equalsIgnoreCase("that"))
 			if (sender instanceof Player) {
+				// get the item name and construct the id and data String
 				int id = ((Player) sender).getTargetBlock(null, 1024).getTypeId(), data = ((Player) sender).getTargetBlock(null, 1024).getData();
-				String full_id = id + "", item_name = myPluginWiki.getItemName(id, data);
-				if (data != 0)
-					full_id += ":" + data;
+				String item_name = Wiki.getItemName(id, data, false, true), id_and_data = String.valueOf(id);
+				// take out the first word, which is an article
+				item_name = item_name.substring(item_name.indexOf(' ') + 1);
+				if (data > 0)
+					id_and_data += ":" + data;
+				// send the message
 				if (item_name != null)
 					if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-						sender.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're pointing at have the I.D. " + full_id + ".");
+						sender.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're pointing at have the I.D. " + id_and_data + ".");
 					else
-						sender.sendMessage(ChatColor.GRAY + "That " + item_name + " you're pointing at has the I.D. " + full_id + ".");
-				else
+						sender.sendMessage(ChatColor.GRAY + "That " + item_name + " you're pointing at has the I.D. " + id_and_data + ".");
+				else {
 					sender.sendMessage(ChatColor.RED + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're pointing at?");
+					sender.sendMessage(ChatColor.RED + "Well, whatever it is, it has the I.D. " + id_and_data + ".");
+				}
+				// get the item name and construct the id and data String
 				id = ((Player) sender).getItemInHand().getTypeId();
 				data = ((Player) sender).getItemInHand().getData().getData();
-				item_name = myPluginWiki.getItemName(id, data);
-				full_id = id + "";
-				if (data != 0)
-					full_id += ":" + data;
+				item_name = Wiki.getItemName(id, data, false, true);
+				// take out the first word, which is an article
+				item_name = item_name.substring(item_name.indexOf(' ') + 1);
+				id_and_data = String.valueOf(id);
+				if (data > 0)
+					id_and_data += ":" + data;
+				// send the message
 				if (item_name != null)
 					if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-						sender.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're holding have the I.D. " + full_id + ".");
+						sender.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're holding have the I.D. " + id_and_data + ".");
 					else
-						sender.sendMessage(ChatColor.GRAY + "That " + item_name + " you're holding has the I.D. " + full_id + ".");
-				else
-					sender.sendMessage(ChatColor.RED + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're holding?");
+						sender.sendMessage(ChatColor.GRAY + "That " + item_name + " you're holding has the I.D. " + id_and_data + ".");
+				else {
+					sender.sendMessage(ChatColor.GRAY + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're holding?");
+					sender.sendMessage(ChatColor.RED + "Well, whatever it is, it has the I.D. " + id_and_data + ".");
+				}
 			} else
 				sender.sendMessage(ChatColor.RED + "You forgot to tell me what item or I.D. you want identified!");
 		else {
@@ -577,84 +605,82 @@ public class myOpAids extends JavaPlugin {
 				if (query.equals(""))
 					query = parameter;
 				else
-					query = query + " " + parameter;
-			// for just id queries
+					query += " " + parameter;
+			// for simple I.D. queries
 			try {
 				int id = Integer.parseInt(query);
-				String item_name = myPluginWiki.getItemName(id, -1);
+				String item_name = Wiki.getItemName(id, -1, true, false);
 				if (item_name != null)
-					if (item_name.endsWith("s") && !item_name.endsWith("ss"))
+					if (!Wiki.getItemName(id, -1, false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
 						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id + ".");
 					else
 						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id + ".");
 				else
 					sender.sendMessage(ChatColor.RED + "No item has the I.D. " + id + ".");
 			} catch (NumberFormatException exception) {
-				// for id and data queries ("[id]:[data]")
-				if (query.split(":").length == 2) {
-					try {
-						int id = Integer.parseInt(query.split(":")[0]), data = Integer.parseInt(query.split(":")[1]);
-						String item_name = myPluginWiki.getItemName(id, data), full_id = id + "";
-						// if it found it, send the message
-						if (data != 0)
-							full_id += ":" + data;
-						if (item_name != null) {
-							if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + full_id + ".");
+				try {
+					String[] temp = query.split(":");
+					if (temp.length == 2) {
+						// for "[id]:[data]" queries
+						int id = Integer.parseInt(temp[0]), data = Integer.parseInt(temp[1]);
+						String item_name = Wiki.getItemName(id, data, true, false), id_and_data = String.valueOf(id);
+						if (data > 0)
+							id_and_data += ":" + data;
+						// send the message
+						if (item_name != null)
+							// if the singular form uses the "some" artcile or the item name ends in "s" but not "ss" (like "wooden planks", but not like
+							// "grass"), the item name is a true plural
+							if (!Wiki.getItemName(id, data, false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id_and_data + ".");
 							else
-								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + full_id + ".");
+								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id_and_data + ".");
+						else
+							sender.sendMessage(ChatColor.RED + "No item has the I.D. " + id_and_data + ".");
+					} else {
+						// for word queries
+						Integer[] id_and_data = Wiki.getItemIdAndData(query, null);
+						if (id_and_data == null) {
+							if (query.toLowerCase().startsWith("a") || query.toLowerCase().startsWith("e") || query.toLowerCase().startsWith("i")
+									|| query.toLowerCase().startsWith("o") || query.toLowerCase().startsWith("u"))
+								sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what an \"" + query + "\" is.");
+							else
+								sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what a \"" + query + "\" is.");
 							return;
 						}
-						if (query.toLowerCase().startsWith("a") || query.toLowerCase().startsWith("e") || query.toLowerCase().startsWith("i")
-								|| query.toLowerCase().startsWith("o") || query.toLowerCase().startsWith("u"))
-							sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what an \"" + query + "\" is.");
-						else
-							sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what a \"" + query + "\" is.");
-					} // for word queries that for some reason contain a colon
-					catch (NumberFormatException excpetion) {
-						Integer[] id_data = myPluginWiki.getItemIdAndData(query.split(" "));
 						// this part seems odd because it seems like it's a long roundabout way to get item_name. You might think: isn't item_name the same as
-						// query? Wrong. A query can be (and probably is) just a few letters from the name of the item. By finding the id, then using that to
-						// get the name, it's an effective autocompletion of the item name
-						String item_name = myPluginWiki.getItemName(id_data[0], id_data[1]), full_id = id_data[0] + "";
+						// query? Wrong. A query can (and probably is) just a few letters from the name of the item. By finding the id, then using that to get
+						// the name, it's an effective autocompletion of the item name.
+						String item_name = Wiki.getItemName(id_and_data[0], id_and_data[1], false, false), id_and_data_term = String.valueOf(id_and_data[0]);
+						if (id_and_data[1] > 0)
+							id_and_data_term += ":" + id_and_data[1];
 						// if it found it, send the message
-						if (id_data[1] != 0)
-							full_id += ":" + id_data[1];
-						if (item_name != null) {
-							if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + full_id + ".");
-							else
-								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + full_id + ".");
-							return;
-						}
+						if (!Wiki.getItemName(id_and_data[0], id_and_data[1], false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+							sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id_and_data_term + ".");
+						else
+							sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id_and_data_term + ".");
+					}
+				} catch (NumberFormatException e) {
+					// for word queries
+					Integer[] id_and_data = Wiki.getItemIdAndData(query, null);
+					if (id_and_data == null) {
 						if (query.toLowerCase().startsWith("a") || query.toLowerCase().startsWith("e") || query.toLowerCase().startsWith("i")
 								|| query.toLowerCase().startsWith("o") || query.toLowerCase().startsWith("u"))
 							sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what an \"" + query + "\" is.");
 						else
 							sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what a \"" + query + "\" is.");
-					}
-				} // for word queries that don't contain a colon or contain more than one
-				else {
-					Integer[] id_data = myPluginWiki.getItemIdAndData(query.split(" "));
-					// this part seems odd because it seems like it's a long roundabout way to get item_name. You might think: isn't item_name the same as
-					// query? Wrong. A query can be (and probably is) just a few letters from the name of the item. By finding the id, then using that to get
-					// the name, it's an effective autocompletion of the item name
-					String item_name = myPluginWiki.getItemName(id_data[0], id_data[1]), full_id = id_data[0] + "";
-					// if it found it, send the message
-					if (id_data[1] != 0)
-						full_id += ":" + id_data[1];
-					if (item_name != null) {
-						if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-							sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + full_id + ".");
-						else
-							sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + full_id + ".");
 						return;
 					}
-					if (query.toLowerCase().startsWith("a") || query.toLowerCase().startsWith("e") || query.toLowerCase().startsWith("i")
-							|| query.toLowerCase().startsWith("o") || query.toLowerCase().startsWith("u"))
-						sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what an \"" + query + "\" is.");
+					// this part seems odd because it seems like it's a long roundabout way to get item_name. You might think: isn't item_name the same as
+					// query? Wrong. A query can (and probably is) just a few letters from the name of the item. By finding the id, then using that to get
+					// the name, it's an effective autocompletion of the item name.
+					String item_name = Wiki.getItemName(id_and_data[0], id_and_data[1], false, false), id_and_data_term = String.valueOf(id_and_data[0]);
+					if (id_and_data[1] > 0)
+						id_and_data_term += ":" + id_and_data[1];
+					// if it found it, send the message
+					if (!Wiki.getItemName(id_and_data[0], id_and_data[1], false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id_and_data_term + ".");
 					else
-						sender.sendMessage(ChatColor.RED + "Sorry, but I don't know what a \"" + query + "\" is.");
+						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id_and_data_term + ".");
 				}
 			}
 		}
