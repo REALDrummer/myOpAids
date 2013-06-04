@@ -8,19 +8,26 @@ import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.craftbukkit.v1_5_R3.block.CraftCreatureSpawner;
 
 import REALDrummer.myGuardDog;
 
@@ -140,8 +147,9 @@ public class myOpAids extends JavaPlugin implements Listener {
 			sender.sendMessage(ChatColor.RED + "Sorry, but I couldn't find a plugin called \"" + parameters[0] + ".\"");
 			return true;
 		} else if (command.equalsIgnoreCase("kill") || command.equalsIgnoreCase("murder")) {
-			if (parameters.length == 0 || (sender instanceof Player && !sender.isOp())) {
-				sender.sendMessage(ChatColor.GRAY + "No! Wait! Don't do it, man! You have so much to live for!");
+			if (!(sender instanceof Player) && parameters.length == 0)
+				sender.sendMessage(ChatColor.RED + "Ouch. That must have hurt. You're immortal, though. You're a console. If you really want to die that badly, try /stop.");
+			else if (parameters.length == 0 || !sender.isOp()) {
 				((Player) sender).setHealth(0);
 				sender.sendMessage(ChatColor.GRAY + "" + ChatColor.ITALIC + "Noooooooooooo!!!\nWhy did it have to end like this?!");
 				suicidal_maniacs.add(sender.getName());
@@ -194,14 +202,43 @@ public class myOpAids extends JavaPlugin implements Listener {
 
 	@EventHandler
 	public void makeMonsterSpawnersDropWithSilkTouch(BlockBreakEvent event) {
-		console.sendMessage(ChatColor.GRAY + "Got the event!");
 		if (event.getPlayer().hasPermission("myopaids.spawners")
+				&& event.getPlayer().getGameMode() != GameMode.CREATIVE
+				&& event.getBlock().getTypeId() == 52
 				&& (event.getPlayer().getItemInHand().getType() == Material.DIAMOND_PICKAXE || event.getPlayer().getItemInHand().getType() == Material.IRON_PICKAXE
 						|| event.getPlayer().getItemInHand().getType() == Material.GOLD_PICKAXE || event.getPlayer().getItemInHand().getType() == Material.STONE_PICKAXE || event
 						.getPlayer().getItemInHand().getType() == Material.WOOD_PICKAXE) && event.getPlayer().getItemInHand().containsEnchantment(Enchantment.SILK_TOUCH)) {
-			// TODO
-			event.setCancelled(true);
-			console.sendMessage(ChatColor.WHITE + event.getBlock().toString());
+			// make sure it doesn't drop xp; if it did, people could just place and break spawners and get xp for free
+			event.setExpToDrop(0);
+			short id = ((CraftCreatureSpawner) event.getBlock().getState()).getSpawnedType().getTypeId();
+			String mob_name = myPluginWiki.getEntityName(id, 0, false, true);
+			// eliminate the article at the beginning of the name
+			mob_name = mob_name.substring(mob_name.indexOf(" ") + 1);
+			// construct the mob spawner item
+			ItemStack item = new ItemStack(Material.MOB_SPAWNER, 1, id);
+			ItemMeta metadata = item.getItemMeta();
+			metadata.setDisplayName(mob_name + " spawner");
+			item.setItemMeta(metadata);
+			event.getBlock().getWorld().dropItemNaturally(event.getBlock().getLocation(), item);
+		}
+	}
+
+	@EventHandler
+	public void fixMonstersSpawnersWhenTheyArePlaced(BlockPlaceEvent event) {
+		String display_name = event.getPlayer().getItemInHand().getItemMeta().getDisplayName();
+		if (event.getPlayer().getItemInHand().getTypeId() == 52 && !display_name.equals("Monster Spawner")) {
+			// use .substring() to remove the "spawner" at the end of the name
+			Integer id = myPluginWiki.getEntityIdAndData(display_name.substring(0, display_name.length() - 8))[0];
+			if (id != null) {
+				((CraftCreatureSpawner) event.getBlock().getState()).setSpawnedType(EntityType.fromId(id));
+				event.getBlock().getState().update(true);
+			} else {
+				event.setCancelled(true);
+				event.getPlayer()
+						.sendMessage(ChatColor.RED + "Wait. ...Uh...don't place that. Sorry. I'm confused. Tell your admin to check the console. Something is wrong.");
+				console.sendMessage(ChatColor.DARK_RED + "What the heck is a " + display_name + "? I've never heard of a \""
+						+ display_name.substring(0, display_name.length() - 8) + "\".");
+			}
 		}
 	}
 
@@ -364,13 +401,10 @@ public class myOpAids extends JavaPlugin implements Listener {
 	private void enchantItem(CommandSender sender) {
 		Player player = (Player) sender;
 		int id = player.getItemInHand().getTypeId();
-		String item_name = Wiki.getItemName(id, -1, false, true);
+		String item_name = myPluginWiki.getItemName(id, -1, false, false, true);
 		// check to make sure the item is enchantable at all
 		if (!(id == 256 || id == 257 || id == 258 || id == 261 || (id >= 267 && id <= 279) || (id >= 283 && id <= 286) || (id >= 302 && id <= 317))) {
-			if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-				player.sendMessage(ChatColor.RED + "Sorry, but " + item_name + " aren't even enchantable.");
-			else
-				player.sendMessage(ChatColor.RED + "Sorry, but " + item_name + " isn't even enchantable.");
+			player.sendMessage(ChatColor.RED + "Sorry, but " + item_name + " aren't even enchantable.");
 			return;
 		}
 		// read the enchantments to add
@@ -561,41 +595,30 @@ public class myOpAids extends JavaPlugin implements Listener {
 	private void id(CommandSender sender) {
 		if (parameters.length == 0 || parameters[0].equalsIgnoreCase("this") || parameters[0].equalsIgnoreCase("that"))
 			if (sender instanceof Player) {
-				// get the item name and construct the id and data String
-				int id = ((Player) sender).getTargetBlock(null, 1024).getTypeId(), data = ((Player) sender).getTargetBlock(null, 1024).getData();
-				String item_name = Wiki.getItemName(id, data, false, true), id_and_data = String.valueOf(id);
-				// take out the first word, which is an article
-				item_name = item_name.substring(item_name.indexOf(' ') + 1);
-				if (data > 0)
-					id_and_data += ":" + data;
+				Player player = (Player) sender;
+				Block block = player.getTargetBlock(null, 1024);
+				String block_name = myPluginWiki.getItemName(block, false, true, true), id_and_data = myPluginWiki.getItemIdAndDataString(block_name, false);
 				// send the message
-				if (item_name != null)
-					if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-						sender.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're pointing at have the I.D. " + id_and_data + ".");
-					else
-						sender.sendMessage(ChatColor.GRAY + "That " + item_name + " you're pointing at has the I.D. " + id_and_data + ".");
+				if (block_name != null)
+					player.sendMessage(ChatColor.GRAY + "That " + block_name + " you're pointing at has the I.D. " + id_and_data + ".");
 				else {
-					sender.sendMessage(ChatColor.RED + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're pointing at?");
-					sender.sendMessage(ChatColor.RED + "Well, whatever it is, it has the I.D. " + id_and_data + ".");
+					player.sendMessage(ChatColor.RED + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're pointing at?");
+					player.sendMessage(ChatColor.RED + "Well, whatever it is, it has the I.D. " + id_and_data + ".");
 				}
-				// get the item name and construct the id and data String
-				id = ((Player) sender).getItemInHand().getTypeId();
-				data = ((Player) sender).getItemInHand().getData().getData();
-				item_name = Wiki.getItemName(id, data, false, true);
-				// take out the first word, which is an article
-				item_name = item_name.substring(item_name.indexOf(' ') + 1);
-				id_and_data = String.valueOf(id);
-				if (data > 0)
-					id_and_data += ":" + data;
+				String item_name = myPluginWiki.getItemName(player.getItemInHand(), false, player.getItemInHand().getAmount() == 1, true);
+				id_and_data = myPluginWiki.getItemIdAndDataString(item_name, true);
 				// send the message
 				if (item_name != null)
-					if (item_name.endsWith("s") && !item_name.endsWith("ss"))
-						sender.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're holding have the I.D. " + id_and_data + ".");
+					if (player.getItemInHand().getAmount() > 1)
+						player.sendMessage(ChatColor.GRAY + "Those " + item_name + " you're holding have the I.D. " + id_and_data + ".");
 					else
-						sender.sendMessage(ChatColor.GRAY + "That " + item_name + " you're holding has the I.D. " + id_and_data + ".");
+						player.sendMessage(ChatColor.GRAY + "That " + item_name + " you're holding has the I.D. " + id_and_data + ".");
 				else {
-					sender.sendMessage(ChatColor.GRAY + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're holding?");
-					sender.sendMessage(ChatColor.RED + "Well, whatever it is, it has the I.D. " + id_and_data + ".");
+					if (player.getItemInHand().getAmount() > 1)
+						player.sendMessage(ChatColor.GRAY + "Uh...what in the world " + ChatColor.ITALIC + "are" + ChatColor.RED + " those things you're holding?");
+					else
+						player.sendMessage(ChatColor.GRAY + "Uh...what in the world " + ChatColor.ITALIC + "is" + ChatColor.RED + " that thing you're holding?");
+					player.sendMessage(ChatColor.RED + "Well, whatever it is, it has the I.D. " + id_and_data + ".");
 				}
 			} else
 				sender.sendMessage(ChatColor.RED + "You forgot to tell me what item or I.D. you want identified!");
@@ -609,9 +632,11 @@ public class myOpAids extends JavaPlugin implements Listener {
 			// for simple I.D. queries
 			try {
 				int id = Integer.parseInt(query);
-				String item_name = Wiki.getItemName(id, -1, true, false);
+				String item_name = myPluginWiki.getItemName(id, -1, false, false, true);
 				if (item_name != null)
-					if (!Wiki.getItemName(id, -1, false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+					// if the singular form uses the "some" artcile or the item name ends in "s" but not "ss" (like "wooden planks", but not like
+					// "grass"), the item name is a true plural
+					if (!myPluginWiki.getItemName(id, -1, false, true, false).startsWith("some ") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
 						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id + ".");
 					else
 						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id + ".");
@@ -623,22 +648,20 @@ public class myOpAids extends JavaPlugin implements Listener {
 					if (temp.length == 2) {
 						// for "[id]:[data]" queries
 						int id = Integer.parseInt(temp[0]), data = Integer.parseInt(temp[1]);
-						String item_name = Wiki.getItemName(id, data, true, false), id_and_data = String.valueOf(id);
-						if (data > 0)
-							id_and_data += ":" + data;
+						String item_name = myPluginWiki.getItemName(id, data, false, false, true);
 						// send the message
 						if (item_name != null)
 							// if the singular form uses the "some" artcile or the item name ends in "s" but not "ss" (like "wooden planks", but not like
 							// "grass"), the item name is a true plural
-							if (!Wiki.getItemName(id, data, false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
-								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id_and_data + ".");
+							if (!myPluginWiki.getItemName(id, data, false, true, false).startsWith("some ") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + query + ".");
 							else
-								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id_and_data + ".");
+								sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + query + ".");
 						else
-							sender.sendMessage(ChatColor.RED + "No item has the I.D. " + id_and_data + ".");
+							sender.sendMessage(ChatColor.RED + "No item has the I.D. " + query + ".");
 					} else {
 						// for word queries
-						Integer[] id_and_data = Wiki.getItemIdAndData(query, null);
+						Integer[] id_and_data = myPluginWiki.getItemIdAndData(query, null);
 						if (id_and_data == null) {
 							if (query.toLowerCase().startsWith("a") || query.toLowerCase().startsWith("e") || query.toLowerCase().startsWith("i")
 									|| query.toLowerCase().startsWith("o") || query.toLowerCase().startsWith("u"))
@@ -650,18 +673,19 @@ public class myOpAids extends JavaPlugin implements Listener {
 						// this part seems odd because it seems like it's a long roundabout way to get item_name. You might think: isn't item_name the same as
 						// query? Wrong. A query can (and probably is) just a few letters from the name of the item. By finding the id, then using that to get
 						// the name, it's an effective autocompletion of the item name.
-						String item_name = Wiki.getItemName(id_and_data[0], id_and_data[1], false, false), id_and_data_term = String.valueOf(id_and_data[0]);
+						String item_name = myPluginWiki.getItemName(id_and_data[0], id_and_data[1], false, false, true), id_and_data_term = String.valueOf(id_and_data[0]);
 						if (id_and_data[1] > 0)
 							id_and_data_term += ":" + id_and_data[1];
 						// if it found it, send the message
-						if (!Wiki.getItemName(id_and_data[0], id_and_data[1], false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+						if (!myPluginWiki.getItemName(id_and_data[0], id_and_data[1], false, true, false).startsWith("some ")
+								|| (item_name.endsWith("s") && !item_name.endsWith("ss")))
 							sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id_and_data_term + ".");
 						else
 							sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id_and_data_term + ".");
 					}
 				} catch (NumberFormatException e) {
 					// for word queries
-					Integer[] id_and_data = Wiki.getItemIdAndData(query, null);
+					Integer[] id_and_data = myPluginWiki.getItemIdAndData(query, null);
 					if (id_and_data == null) {
 						if (query.toLowerCase().startsWith("a") || query.toLowerCase().startsWith("e") || query.toLowerCase().startsWith("i")
 								|| query.toLowerCase().startsWith("o") || query.toLowerCase().startsWith("u"))
@@ -673,11 +697,12 @@ public class myOpAids extends JavaPlugin implements Listener {
 					// this part seems odd because it seems like it's a long roundabout way to get item_name. You might think: isn't item_name the same as
 					// query? Wrong. A query can (and probably is) just a few letters from the name of the item. By finding the id, then using that to get
 					// the name, it's an effective autocompletion of the item name.
-					String item_name = Wiki.getItemName(id_and_data[0], id_and_data[1], false, false), id_and_data_term = String.valueOf(id_and_data[0]);
+					String item_name = myPluginWiki.getItemName(id_and_data[0], id_and_data[1], false, false, true), id_and_data_term = String.valueOf(id_and_data[0]);
 					if (id_and_data[1] > 0)
 						id_and_data_term += ":" + id_and_data[1];
 					// if it found it, send the message
-					if (!Wiki.getItemName(id_and_data[0], id_and_data[1], false, true).startsWith("some") || (item_name.endsWith("s") && !item_name.endsWith("ss")))
+					if (!myPluginWiki.getItemName(id_and_data[0], id_and_data[1], false, true, false).startsWith("some ")
+							|| (item_name.endsWith("s") && !item_name.endsWith("ss")))
 						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " have the I.D. " + id_and_data_term + ".");
 					else
 						sender.sendMessage(ChatColor.GRAY + item_name.substring(0, 1).toUpperCase() + item_name.substring(1) + " has the I.D. " + id_and_data_term + ".");
