@@ -1,8 +1,8 @@
 package REALDrummer;
 
 import java.util.ArrayList;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
-
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -19,32 +19,44 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.vehicle.VehicleMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.material.MaterialData;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.craftbukkit.v1_5_R3.block.CraftCreatureSpawner;
-
-import REALDrummer.myGuardDog;
+import org.bukkit.util.Vector;
+import org.bukkit.craftbukkit.v1_6_R1.block.CraftCreatureSpawner;
 
 public class myOpAids extends JavaPlugin implements Listener {
 
 	public static Server server;
 	public static ConsoleCommandSender console;
-	private static String[] parameters = new String[0];
+	public static GregorianCalendar time = new GregorianCalendar();
+	public static String[] parameters = new String[0];
 	private static final String[] enable_messages = { "I'm ready to help!", "You're welcome.", "Time to be the best server op ever...other than REALDrummer, of course." },
 			disable_messages = { "I hope you enjoyed my BANHAMMER!", "Griefers: banned. \nPlayers: happy. \nYou: happy. \nMe: done with my work here." }, magic_words = {
 					"Sha-ZAM!", "ALAKAZAM!", "POOF!", "BOOM!", "KA-POW!", "Sha-FWAAAH!", "Kali-kaPOW!", "TORTELLINI!", "Kras-TOPHALEMOTZ!", "Wah-SHAM!", "Wa-ZAM!",
 					"Wha-ZOO!", "KERFUFFLE!", "WOOOOWOWOWOWOW!", "CREAMPUFF WADLEEDEE!", "FLUFFENNUGGET!", "FALALALALAAAAAA-lala-la-LAAAA!", "SHNITZ-LIEDERHOSEN!",
 					"BWAAAAAAAAAAAAH!", "FEE-FI-FO-FUM!", "ROTISSERIE!", "LALA-BIBIAY!", "Kurlaka-FWAH!" }, enchantment_level_roman_numerals = { " I", " II", " III", " IV",
 					" V" };
-	private static HashMap<Enchantment, String> enchantment_names = new HashMap<Enchantment, String>();
-	private static HashMap<String, GameMode> offline_player_gamemodes = new HashMap<String, GameMode>(), gamemodes_to_change = new HashMap<String, GameMode>();
-	private ArrayList<String> suicidal_maniacs = new ArrayList<String>(), players_who_need_to_input_passwords = new ArrayList<String>();
+	public static String password = "passw0rd";
+	public static int number_of_attempts = 5;
+	public static HashMap<Enchantment, String> enchantment_names = new HashMap<Enchantment, String>();
+	public static HashMap<String, GameMode> offline_player_gamemodes = new HashMap<String, GameMode>(), gamemodes_to_change = new HashMap<String, GameMode>();
+	public static ArrayList<String> suicidal_maniacs = new ArrayList<String>(), relogging_players = new ArrayList<String>();
+	public HashMap<String, Integer> password_inputters = new HashMap<String, Integer>();
+	public HashMap<String, Long> kick_timers = new HashMap<String, Long>();
 
 	// TODO: make it announce when a player is kicked or banned vs. just disconnected (if myScribe doesn't exist, otherwise, myScribe will take care of it)
 	// TODO: make a configurable setup where people can determine which plugin is dominant when two plugins have conflicting commands
@@ -175,11 +187,77 @@ public class myOpAids extends JavaPlugin implements Listener {
 		} else if (command.equalsIgnoreCase("ids") || command.equalsIgnoreCase("id")) {
 			id(sender);
 			return true;
+		} else if (command.equalsIgnoreCase("position") || command.equalsIgnoreCase("pos")) {
+			if (sender instanceof Player)
+				sender.sendMessage("You are at (" + ((Player) sender).getLocation().getBlockX() + ", " + ((Player) sender).getLocation().getBlockY() + ", "
+						+ ((Player) sender).getLocation().getBlockZ() + ") facing (" + ((Player) sender).getLocation().getPitch() + "[=pitch], "
+						+ ((Player) sender).getLocation().getYaw() + "[=yaw]).");
+			else
+				sender.sendMessage(ChatColor.RED + "You're a console.... You have no position!");
+			return true;
 		}
 		return false;
 	}
 
 	// listeners
+	@EventHandler
+	public void askForPasswordAndKeepKickedPlayersFromLoggingBackOnEarly(PlayerJoinEvent event) {
+		if (kick_timers.containsKey(event.getPlayer().getName()) && time.getTimeInMillis() > kick_timers.get(event.getPlayer().getName())) {
+			event.setJoinMessage("");
+			event.getPlayer().kickPlayer(
+					ChatColor.GRAY + "Sorry, but you're still not allowed back on this server for another "
+							+ myPluginUtils.translateTimeInmsToString((int) (time.getTimeInMillis() - kick_timers.get(event.getPlayer().getName())), true) + ".");
+		} else if (relogging_players.contains(event.getPlayer().getName()))
+			relogging_players.remove(event.getPlayer().getName());
+		else {
+			password_inputters.put(event.getPlayer().getName(), 0);
+			event.getPlayer().sendMessage(ChatColor.GRAY + "Please input the server's password!");
+		}
+	}
+
+	@EventHandler
+	public void stopPassWordInputtersFromMoving(PlayerMoveEvent event) {
+		if (password_inputters.containsKey(event.getPlayer().getName())
+				&& !(event.getTo().getX() == event.getFrom().getX() && event.getTo().getY() == event.getFrom().getY() && event.getTo().getZ() == event.getFrom().getZ())) {
+			event.setCancelled(true);
+			event.getPlayer().sendMessage(ChatColor.GRAY + "You have to put in the server's password before you can move.");
+		}
+	}
+
+	@EventHandler
+	public void stopPassWordInputtersFromInteracting(PlayerInteractEvent event) {
+		if (password_inputters.containsKey(event.getPlayer().getName())) {
+			event.setCancelled(true);
+			event.getPlayer().sendMessage(ChatColor.GRAY + "You have to put in the server's password before you can build or use things.");
+		}
+	}
+
+	@EventHandler
+	public void stopPassWordInputtersFromInteractingWithEntities(PlayerInteractEntityEvent event) {
+		if (password_inputters.containsKey(event.getPlayer().getName())) {
+			event.setCancelled(true);
+			event.getPlayer().sendMessage(ChatColor.GRAY + "You have to put in the server's password before you can build or use things.");
+		}
+	}
+
+	@EventHandler
+	public void stopPassWordInputtersFromMoving(PlayerCommandPreprocessEvent event) {
+		if (password_inputters.containsKey(event.getPlayer().getName())) {
+			event.setCancelled(true);
+			event.getPlayer().sendMessage(ChatColor.GRAY + "You have to put in the server's password before you can use commands.");
+		}
+	}
+
+	@EventHandler
+	public void stopPassWordInputtersFromMovingInVehicles(VehicleMoveEvent event) {
+		if (event.getVehicle().getPassenger() instanceof Player && password_inputters.containsKey(((Player) event.getVehicle().getPassenger()).getName())
+				&& !(event.getTo().getX() == event.getFrom().getX() && event.getTo().getY() == event.getFrom().getY() && event.getTo().getZ() == event.getFrom().getZ())) {
+			event.getVehicle().setVelocity(new Vector(0, 0, 0));
+			event.getVehicle().teleport(event.getFrom());
+			((Player) (event.getVehicle().getPassenger())).sendMessage(ChatColor.GRAY + "You have to put in the server's password before you can move.");
+		}
+	}
+
 	@EventHandler
 	public void rejoiceAtThePlayersRespawnAfterSuicide(PlayerRespawnEvent event) {
 		if (suicidal_maniacs.contains(event.getPlayer().getName())) {
@@ -193,11 +271,43 @@ public class myOpAids extends JavaPlugin implements Listener {
 	@EventHandler
 	public void recordThePlayersGameModeBeforeTheyLogOff(PlayerQuitEvent event) {
 		offline_player_gamemodes.put(event.getPlayer().getName(), event.getPlayer().getGameMode());
+		relogging_players.add(event.getPlayer().getName());
+		// 15 seconds = 300 ticks
+		server.getScheduler().scheduleSyncDelayedTask(this, new myOpAids$1(event.getPlayer(), "track relogging"), 300);
 	}
 
 	@EventHandler
-	public void cancelMonsterCombatEngagesForPlayersWhoNeedToPutInTheServerPassword(EntityTargetEvent event) {
-		// TODO make a entity stop targeting a player who is putting in the password.
+	public void readPasswordInputs(AsyncPlayerChatEvent event) {
+		if (password_inputters.containsKey(event.getPlayer().getName())) {
+			event.setCancelled(true);
+			if (event.getMessage().equals(password)) {
+				password_inputters.remove(event.getPlayer().getName());
+				event.getPlayer().sendMessage(ChatColor.GRAY + "Welcome to the server!");
+			} else if (password_inputters.get(event.getPlayer().getName()) % number_of_attempts == 0 && password_inputters.get(event.getPlayer().getName()) > 0) {
+				// players are kicked from the server for 2^(the number of times they've been kicked for failing the password input) minutes
+				event.getPlayer().kickPlayer(
+						ChatColor.GRAY + "Sorry, but you're out of attempts. You can come on and try again in "
+								+ Math.pow(2, password_inputters.get(event.getPlayer().getName()) / number_of_attempts * 2) + " minutes");
+				kick_timers.put(event.getPlayer().getName(), time.getTimeInMillis()
+						+ (long) (Math.pow(2, password_inputters.get(event.getPlayer().getName()) / number_of_attempts * 2) * 60000));
+			} else {
+				password_inputters.put(event.getPlayer().getName(), password_inputters.get(event.getPlayer().getName()) + 1);
+				event.getPlayer().sendMessage(
+						ChatColor.GRAY + "That password is incorrect. You have " + (5 - password_inputters.get(event.getPlayer().getName())) + " tries left.");
+			}
+		}
+	}
+
+	@EventHandler
+	public void protectPasswordInputtersFromMonsters(EntityTargetEvent event) {
+		if (event.getTarget() instanceof Player && password_inputters.containsKey(((Player) event.getTarget()).getName()))
+			event.setCancelled(true);
+	}
+
+	@EventHandler
+	public void protectPasswordInputtersFromDamage(EntityDamageEvent event) {
+		if (event.getEntity() instanceof Player && password_inputters.containsKey(((Player) event.getEntity()).getName()))
+			event.setCancelled(true);
 	}
 
 	@EventHandler
@@ -210,71 +320,93 @@ public class myOpAids extends JavaPlugin implements Listener {
 						.getPlayer().getItemInHand().getType() == Material.WOOD_PICKAXE) && event.getPlayer().getItemInHand().containsEnchantment(Enchantment.SILK_TOUCH)) {
 			// make sure it doesn't drop xp; if it did, people could just place and break spawners and get xp for free
 			event.setExpToDrop(0);
-			short id = ((CraftCreatureSpawner) event.getBlock().getState()).getSpawnedType().getTypeId();
-			String mob_name = myPluginWiki.getEntityName(id, 0, false, true);
-			// eliminate the article at the beginning of the name
-			mob_name = mob_name.substring(mob_name.indexOf(" ") + 1);
+			EntityType type = ((CraftCreatureSpawner) event.getBlock().getState()).getSpawnedType();
+			String mob_name = myPluginWiki.getEntityName(type, false, true, true);
+			if (mob_name == null) {
+				if (!event.getPlayer().isOp())
+					event.getPlayer()
+							.sendMessage(
+									ChatColor.DARK_RED
+											+ "Uh...sorry, but don't break that. There's something wrong. Tell your admins that myOpAids has a problem breaking monster spawners with Silk Touch.");
+				else
+					event.getPlayer().sendMessage(
+							ChatColor.DARK_RED + "Hold on just a second. This spawner...spawns something with the I.D. " + type.getTypeId() + ". ...What has the I.D. "
+									+ type.getTypeId() + "?");
+				event.setCancelled(true);
+				myPluginUtils.tellOps(ChatColor.DARK_RED + "Someone tried to pick up a spawner that spawns something with the I.D. " + type.getTypeId()
+						+ ", but I have no idea what has the I.D. " + type.getTypeId() + "!", true, event.getPlayer().getName());
+				return;
+			}
 			// construct the mob spawner item
-			ItemStack item = new ItemStack(Material.MOB_SPAWNER, 1, id);
+			ItemStack item = new ItemStack(Material.MOB_SPAWNER, 1);
+			// set the data value to the I.D. of the monster it spawns
+			MaterialData data = item.getData();
+			data.setData((byte) type.getTypeId());
+			item.setData(data);
+			// set the display name
 			ItemMeta metadata = item.getItemMeta();
-			metadata.setDisplayName(mob_name + " spawner");
+			metadata.setDisplayName(mob_name.substring(0, 1).toUpperCase() + mob_name.substring(1) + " Spawner");
 			item.setItemMeta(metadata);
+			// drop the monster spawner item
 			event.getBlock().getWorld().dropItemNaturally(event.getBlock().getLocation(), item);
 		}
 	}
 
 	@EventHandler
 	public void fixMonstersSpawnersWhenTheyArePlaced(BlockPlaceEvent event) {
-		String display_name = event.getPlayer().getItemInHand().getItemMeta().getDisplayName();
-		if (event.getPlayer().getItemInHand().getTypeId() == 52 && !display_name.equals("Monster Spawner")) {
-			// use .substring() to remove the "spawner" at the end of the name
-			Integer id = myPluginWiki.getEntityIdAndData(display_name.substring(0, display_name.length() - 8))[0];
-			if (id != null) {
-				((CraftCreatureSpawner) event.getBlock().getState()).setSpawnedType(EntityType.fromId(id));
+		if (event.getPlayer().getItemInHand().getTypeId() == 52) {
+			EntityType type = EntityType.fromId(event.getPlayer().getItemInHand().getData().getData());
+			if (type != null) {
+				((CraftCreatureSpawner) event.getBlock().getState()).setSpawnedType(type);
 				event.getBlock().getState().update(true);
 			} else {
 				event.setCancelled(true);
-				event.getPlayer()
-						.sendMessage(ChatColor.RED + "Wait. ...Uh...don't place that. Sorry. I'm confused. Tell your admin to check the console. Something is wrong.");
-				console.sendMessage(ChatColor.DARK_RED + "What the heck is a " + display_name + "? I've never heard of a \""
-						+ display_name.substring(0, display_name.length() - 8) + "\".");
+				if (!event.getPlayer().isOp())
+					event.getPlayer()
+							.sendMessage(
+									ChatColor.DARK_RED
+											+ "Wait. ...Uh...don't place that. Sorry. I'm confused. Tell your admins that myOpAids has a problem placing monster spawners.");
+				else
+					event.getPlayer().sendMessage(
+							ChatColor.DARK_RED + "Hold on just a second. This spawner...spawns something with the I.D. " + event.getPlayer().getItemInHand().getDurability()
+									+ ". ...What has the I.D. " + event.getPlayer().getItemInHand().getDurability() + "?");
+				event.setCancelled(true);
+				myPluginUtils.tellOps(ChatColor.DARK_RED + "Someone tried to pick up a spawner that spawns something with the I.D. "
+						+ event.getPlayer().getItemInHand().getDurability() + ", but I have no idea what has the I.D. " + event.getPlayer().getItemInHand().getDurability()
+						+ "!", true, event.getPlayer().getName());
+				return;
 			}
 		}
 	}
 
 	// plugin commands
 	private void changeGameMode(CommandSender sender) {
-		if (server.getPluginManager().getPlugin("myGuardDog") != null) {
-			myGuardDog.parameters = parameters;
-			myGuardDog.changeGameMode(sender);
-			return;
-		}
 		if (parameters.length == 0)
 			if (sender instanceof Player)
 				if (((Player) sender).getGameMode() == GameMode.CREATIVE) {
 					((Player) sender).setGameMode(GameMode.SURVIVAL);
 					sender.sendMessage(ChatColor.GRAY + "You're now in Survival Mode. Watch out for monsters.");
-					console.sendMessage(ChatColor.GRAY + sender.getName() + " changed to Survival Mode.");
+					myPluginUtils.tellOps(ChatColor.GRAY + sender.getName() + " changed to Survival Mode.", true, ((Player) sender).getName());
 				} else {
 					((Player) sender).setGameMode(GameMode.CREATIVE);
 					sender.sendMessage(ChatColor.GRAY + "You're now in Creative Mode. Go nuts. Have fun.");
-					console.sendMessage(ChatColor.GRAY + sender.getName() + " changed to Creative Mode.");
+					myPluginUtils.tellOps(ChatColor.GRAY + sender.getName() + " changed to Creative Mode.", true, ((Player) sender).getName());
 				}
 			else
 				sender.sendMessage(ChatColor.RED + "You forgot to tell me whose gamemode you want me to change! I can't exactly change yours, can I?");
 		else if (parameters.length == 1)
 			if (sender instanceof Player && ("creative".startsWith(parameters[0].toLowerCase()) || parameters[0].equals("1"))) {
-				if (!((Player) sender).getGameMode().equals(GameMode.CREATIVE)) {
+				if (((Player) sender).getGameMode() != GameMode.CREATIVE) {
 					((Player) sender).setGameMode(GameMode.CREATIVE);
 					sender.sendMessage(ChatColor.GRAY + "You're now in Creative Mode. Go nuts. Have fun.");
-					console.sendMessage(ChatColor.GRAY + sender.getName() + " changed to Creative Mode.");
+					myPluginUtils.tellOps(ChatColor.GRAY + sender.getName() + " changed to Creative Mode.", true, ((Player) sender).getName());
 				} else
 					sender.sendMessage(ChatColor.RED + "You're already in Creative Mode!");
 			} else if (sender instanceof Player && ("survival".startsWith(parameters[0].toLowerCase()) || parameters[0].equals("0"))) {
 				if (!((Player) sender).getGameMode().equals(GameMode.SURVIVAL)) {
 					((Player) sender).setGameMode(GameMode.SURVIVAL);
 					sender.sendMessage(ChatColor.GRAY + "You're now in Survival Mode. Watch out for monsters.");
-					console.sendMessage(ChatColor.GRAY + sender.getName() + " changed to Survival Mode.");
+					myPluginUtils.tellOps(ChatColor.GRAY + sender.getName() + " changed to Survival Mode.", true, ((Player) sender).getName());
 				} else
 					sender.sendMessage(ChatColor.RED + "You're already in Survival Mode!");
 			} else {
