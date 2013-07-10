@@ -209,7 +209,7 @@ public class myOpAids extends JavaPlugin implements Listener {
 							+ myPluginUtils.translateTimeInmsToString((int) (time.getTimeInMillis() - kick_timers.get(event.getPlayer().getName())), true) + ".");
 		} else if (relogging_players.contains(event.getPlayer().getName()))
 			relogging_players.remove(event.getPlayer().getName());
-		else {
+		else if (!event.getPlayer().isOp()) {
 			password_inputters.put(event.getPlayer().getName(), 0);
 			event.getPlayer().sendMessage(ChatColor.GRAY + "Please input the server's password!");
 		}
