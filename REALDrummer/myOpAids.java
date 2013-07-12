@@ -36,7 +36,7 @@ import org.bukkit.material.MaterialData;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
-import org.bukkit.craftbukkit.v1_6_R1.block.CraftCreatureSpawner;
+import org.bukkit.craftbukkit.v1_6_R2.block.CraftCreatureSpawner;
 
 public class myOpAids extends JavaPlugin implements Listener {
 
@@ -339,12 +339,14 @@ public class myOpAids extends JavaPlugin implements Listener {
 			}
 			// construct the mob spawner item
 			ItemStack item = new ItemStack(Material.MOB_SPAWNER, 1);
-			// set the data value to the I.D. of the monster it spawns
-			MaterialData data = item.getData();
-			data.setData((byte) type.getTypeId());
-			item.setData(data);
 			// set the display name
 			ItemMeta metadata = item.getItemMeta();
+			ArrayList<String> lore = new ArrayList<String>();
+			if (metadata.hasLore())
+				for (String lore_line : metadata.getLore())
+					lore.add(lore_line);
+			lore.add(0, "I spawn " + myPluginWiki.getEntityName(type, false, false, true) + ".");
+			metadata.setLore(lore);
 			metadata.setDisplayName(mob_name.substring(0, 1).toUpperCase() + mob_name.substring(1) + " Spawner");
 			item.setItemMeta(metadata);
 			// drop the monster spawner item
@@ -355,11 +357,14 @@ public class myOpAids extends JavaPlugin implements Listener {
 	@EventHandler
 	public void fixMonstersSpawnersWhenTheyArePlaced(BlockPlaceEvent event) {
 		if (event.getPlayer().getItemInHand().getTypeId() == 52) {
-			EntityType type = EntityType.fromId(event.getPlayer().getItemInHand().getData().getData());
-			if (type != null) {
-				((CraftCreatureSpawner) event.getBlock().getState()).setSpawnedType(type);
-				event.getBlock().getState().update(true);
-			} else {
+			if (!event.getPlayer().getItemInHand().getItemMeta().hasLore())
+				return;
+			String our_lore = event.getPlayer().getItemInHand().getItemMeta().getLore().get(0);
+			Integer[] id_and_data = myPluginWiki.getEntityIdAndData(our_lore.substring(8, our_lore.length() - 1));
+			EntityType type = null;
+			if (id_and_data != null)
+				type = EntityType.fromId(id_and_data[0]);
+			if (type == null) {
 				event.setCancelled(true);
 				if (!event.getPlayer().isOp())
 					event.getPlayer()
@@ -368,14 +373,17 @@ public class myOpAids extends JavaPlugin implements Listener {
 											+ "Wait. ...Uh...don't place that. Sorry. I'm confused. Tell your admins that myOpAids has a problem placing monster spawners.");
 				else
 					event.getPlayer().sendMessage(
-							ChatColor.DARK_RED + "Hold on just a second. This spawner...spawns something with the I.D. " + event.getPlayer().getItemInHand().getDurability()
-									+ ". ...What has the I.D. " + event.getPlayer().getItemInHand().getDurability() + "?");
+							ChatColor.DARK_RED + "Hold on just a second. This spawner...spawns something with the I.D. "
+									+ event.getPlayer().getItemInHand().getData().getData() + ". ...What has the I.D. "
+									+ event.getPlayer().getItemInHand().getData().getData() + "?");
 				event.setCancelled(true);
 				myPluginUtils.tellOps(ChatColor.DARK_RED + "Someone tried to pick up a spawner that spawns something with the I.D. "
-						+ event.getPlayer().getItemInHand().getDurability() + ", but I have no idea what has the I.D. " + event.getPlayer().getItemInHand().getDurability()
-						+ "!", true, event.getPlayer().getName());
+						+ event.getPlayer().getItemInHand().getData().getData() + ", but I have no idea what has the I.D. "
+						+ event.getPlayer().getItemInHand().getData().getData() + "!", true, event.getPlayer().getName());
 				return;
 			}
+			((CraftCreatureSpawner) event.getBlock().getState()).setSpawnedType(type);
+			event.getBlock().getState().update(true);
 		}
 	}
 
