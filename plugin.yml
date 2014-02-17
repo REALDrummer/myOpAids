@@ -1,0 +1,47 @@
+name: myOpAids
+main: REALDrummer.myOpAids
+version: 0
+depend: [myPluginWiki]
+description: >
+             This plugin has lots of really nice command tweaks to hepl ops do their jobs better.
+commands:
+   disable:
+      aliases: [dis]
+      description: This command disables the designated plugin.
+      usage: |
+           /<command> [plugin]
+   enable:
+      aliases: [en]
+      description: This command enables the designated plugin.
+      usage: |
+           /<command> [plugin]
+   gamemode:
+      aliases: [gm]
+      description: This command modifies properties of an existing warp.
+      usage: |
+           /<command> (player) (gamemode)
+   kill:
+      aliases: [murder]
+      description: This command instantly kills you or the designated player (for ops only, of course).
+      usage: |
+           /<command> (player)
+   load:
+      aliases: [l]
+      description: This command loads the designated plugin from a .jar in the plugins folder.
+      usage: |
+           /<command> [plugin .jar file name]
+   password:
+      aliases: [pw]
+      description: This command sets or changes the player's password.
+      usage: |
+           /<command> [password]
+   position:
+      aliases: [pos]
+      description: This command tells the player their current position.
+      usage: |
+           /<command>
+   unload:
+      aliases: [ul]
+      description: This command unloads the designated plugin from the server, completely removing all its commands and allowing the modification or deletion of the plugin's .jar file.
+      usage: |
+           /<command> [plugin name]
